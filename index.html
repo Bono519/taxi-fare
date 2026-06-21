@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>計程車資估算｜台灣</title>
+  <meta name="description" content="台灣計程車資估算，支援高雄市費率、真實道路距離、夜間加成自動判斷" />
+  <meta name="theme-color" content="#0f1923" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── 設計代幣 ── */
+    :root {
+      --bg:        #0f1923;
+      --surface:   #172130;
+      --surface2:  #1e2d40;
+      --border:    #2a3d52;
+      --accent:    #f5a623;
+      --accent2:   #e8874a;
+      --text:      #e8edf2;
+      --text-sub:  #7a9ab8;
+      --success:   #3ecf8e;
+      --danger:    #e74c3c;
+      --night:     #7c5cbf;
+      --font-ui:   'Inter', system-ui, sans-serif;
+      --font-mono: 'DM Mono', monospace;
+      --r:         12px;
+      --r-sm:      8px;
+      --shadow:    0 4px 24px rgba(0,0,0,.45);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      padding: 0 0 env(safe-area-inset-bottom);
+    }
+
+    /* ── 頂部 ── */
+    header {
+      background: linear-gradient(135deg, #0f1923 0%, #1a2940 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 20px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-inner {
+      max-width: 600px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .taxi-icon {
+      font-size: 28px;
+      filter: drop-shadow(0 0 8px rgba(245,166,35,.5));
+    }
+    .header-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .header-text p {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* ── 主要內容 ── */
+    main {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── 卡片 ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-sub);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-title::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ── 城市選擇 ── */
+    .city-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .city-btn {
+      padding: 7px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-sub);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .city-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f1923;
+      font-weight: 600;
+    }
+    .city-btn:hover:not(.active) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .coming-soon {
+      font-size: 10px;
+      color: var(--text-sub);
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+
+    /* ── 輸入欄位 ── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field + .field { margin-top: 14px; }
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+    input[type="text"],
+    input[type="time"] {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .15s;
+      -webkit-appearance: none;
+    }
+    input[type="text"]:focus,
+    input[type="time"]:focus {
+      border-color: var(--accent);
+    }
+    input[type="text"]::placeholder { color: var(--text-sub); }
+
+    /* 時間輸入特殊顏色 */
+    input[type="time"] {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      max-width: 140px;
+    }
+
+    .btn-gps {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--accent);
+      font-size: 18px;
+      padding: 0 14px;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+    }
+    .btn-gps:hover { background: var(--border); }
+    .btn-gps:active { transform: scale(.96); }
+
+    /* 地址建議下拉 */
+    .suggestions {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      display: none;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .suggestions.show { display: block; }
+    .suggestion-item {
+      padding: 10px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: var(--border); }
+    .suggestion-item strong { color: var(--accent); }
+
+    /* ── 附加費用 ── */
+    .addon-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .addon-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .addon-label {
+      font-size: 14px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .addon-label .icon { font-size: 16px; }
+    .addon-sub {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 1px;
+    }
+
+    /* 夜間標籤 */
+    .night-badge {
+      display: none;
+      background: rgba(124,92,191,.2);
+      border: 1px solid var(--night);
+      color: var(--night);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .night-badge.show { display: inline-block; }
+
+    /* 時間區塊 */
+    .time-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ── 計算按鈕 ── */
+    .btn-calc {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      border: none;
+      border-radius: var(--r);
+      color: #0f1923;
+      font-family: var(--font-ui);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      letter-spacing: .02em;
+    }
+    .btn-calc:hover { opacity: .92; }
+    .btn-calc:active { transform: scale(.98); }
+    .btn-calc:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── 結果卡 ── */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      display: none;
+    }
+    .result-card.show { display: block; }
+    .result-header {
+      background: linear-gradient(135deg, rgba(245,166,35,.12), rgba(232,135,74,.08));
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-header h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .distance-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+    }
+    .fare-range {
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .fare-value {
+      text-align: center;
+    }
+    .fare-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-bottom: 4px;
+    }
+    .fare-amount {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+    .fare-unit { font-size: 14px; color: var(--text-sub); }
+    .fare-divider {
+      font-size: 28px;
+      color: var(--border);
+      padding: 0 4px;
+    }
+
+    /* 明細表 */
+    .breakdown {
+      border-top: 1px solid var(--border);
+      padding: 16px 20px;
+    }
+    .breakdown-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+    .breakdown-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(42,61,82,.5);
+      font-size: 13px;
+    }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-item .label { color: var(--text-sub); }
+    .breakdown-item .value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+    }
+    .breakdown-item.highlight .label { color: var(--night); }
+    .breakdown-item.highlight .value { color: var(--night); }
+    .breakdown-item.total .label {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .breakdown-item.total .value {
+      color: var(--accent);
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    /* 免責說明 */
+    .disclaimer {
+      font-size: 11px;
+      color: var(--text-sub);
+      text-align: center;
+      line-height: 1.6;
+      padding: 0 4px;
+    }
+    .disclaimer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* 載入動畫 */
+    .loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      color: var(--text-sub);
+      font-size: 13px;
+    }
+    .loading.show { display: flex; }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 錯誤訊息 */
+    .error-msg {
+      background: rgba(231,76,60,.12);
+      border: 1px solid rgba(231,76,60,.4);
+      border-radius: var(--r-sm);
+      color: var(--danger);
+      font-size: 13px;
+      padding: 10px 14px;
+      display: none;
+    }
+    .error-msg.show { display: block; }
+
+    /* 費率資訊 */
+    .rate-info {
+      background: rgba(245,166,35,.06);
+      border: 1px solid rgba(245,166,35,.2);
+      border-radius: var(--r-sm);
+      padding: 12px 14px;
+      font-size: 12px;
+      color: var(--text-sub);
+      line-height: 1.7;
+    }
+    .rate-info strong { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <span class="taxi-icon">🚕</span>
+    <div class="header-text">
+      <h1>計程車資估算</h1>
+      <p>台灣各縣市費率 · 真實道路距離</p>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 城市選擇 -->
+  <div class="card">
+    <div class="card-title">選擇城市</div>
+    <div class="city-tabs">
+      <button class="city-btn active" data-city="kaohsiung">高雄市</button>
+      <button class="city-btn" data-city="tainan" disabled>
+        台南市<span class="coming-soon">即將開放</span>
+      </button>
+      <button class="city-btn" data-city="taipei" disabled>
+        台北市<span class="coming-soon">即將開放</span>
+      </button>
+      <button class="city-btn" data-city="taichung" disabled>
+        台中市<span class="coming-soon">即將開放</span>
+      </button>
+    </div>
+
+    <div class="rate-info" style="margin-top:14px;" id="rateInfo">
+      <strong>高雄市費率（2024）</strong>：起跳 <strong>85元</strong>（1,250公尺）
+      ＋每 250公尺 <strong>5元</strong>
+      ／夜間 23:00–06:00 加收 <strong>20%</strong>
+    </div>
+  </div>
+
+  <!-- 起訖點 -->
+  <div class="card">
+    <div class="card-title">起訖點設定</div>
+
+    <div class="field">
+      <label>🟢 起點</label>
+      <div class="input-row">
+        <input type="text" id="originInput" placeholder="輸入起點地址（如：高雄市三民區建國二路）" autocomplete="off" />
+        <button class="btn-gps" id="gpsBtn" title="使用目前位置">📍</button>
+      </div>
+      <div class="suggestions" id="originSuggestions"></div>
+    </div>
+
+    <div class="field">
+      <label>🔴 終點</label>
+      <div class="input-row">
+        <input type="text" id="destInput" placeholder="輸入終點地址（如：高雄市前鎮區中山三路）" autocomplete="off" />
+      </div>
+      <div class="suggestions" id="destSuggestions"></div>
+    </div>
+  </div>
+
+  <!-- 搭車條件 -->
+  <div class="card">
+    <div class="card-title">搭車條件</div>
+    <div class="addon-grid">
+
+      <!-- 搭車時間 -->
+      <div class="addon-row">
+        <div>
+          <div class="addon-label"><span class="icon">🕐</span>搭車時間</div>
+          <div class="addon-sub">程式自動判斷夜間加成（23:00–06:00）</div>
+        </div>
+        <div class="time-row">
+          <input type="time" id="rideTime" />
+          <span class="night-badge" id="nightBadge">🌙 夜間加成</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 計算按鈕 -->
+  <button class="btn-calc" id="calcBtn">計算車資</button>
+
+  <!-- 載入中 -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <span>計算道路距離中…</span>
+  </div>
+
+  <!-- 錯誤訊息 -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- 結果 -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <h3>估算結果</h3>
+      <div class="distance-pill" id="distancePill">— 公里</div>
+    </div>
+    <div class="fare-range">
+      <div class="fare-value">
+        <div class="fare-label">最低估算</div>
+        <div class="fare-amount" id="fareMin">—</div>
+        <div class="fare-unit">元</div>
+      </div>
+      <div class="fare-divider">~</div>
+      <div class="fare-value">
+        <div class="fare-label">最高估算</div>
+        <div class="fare-amount" id="fareMax">—</div>
+        <div class="fare-unit">元</div>
+      </div>
+    </div>
+    <div class="breakdown" id="breakdown"></div>
+  </div>
+
+  <!-- 免責聲明 -->
+  <p class="disclaimer">
+    本工具為估算參考，實際車資依儀表顯示為準。<br />
+    費率資料來源：高雄市政府交通局公告。<br />
+    距離計算採用 <a href="https://project-osrm.org" target="_blank">OSRM</a> 真實道路資料。
+  </p>
+
+</main>
+
+<script>
+/* ─── 費率設定（高雄市） ─── */
+const RATES = {
+  kaohsiung: {
+    name: '高雄市',
+    flagFare: 85,          // 起跳費（元）
+    flagDist: 1250,        // 起跳距離（公尺）
+    meterDist: 250,        // 每跳距離（公尺）
+    meterFare: 5,          // 每跳費用（元）
+    nightSurcharge: 0.20,  // 夜間加成比例
+    nightStart: 23,        // 夜間起始時
+    nightEnd: 6,           // 夜間結束時
+  }
+};
+
+let currentCity = 'kaohsiung';
+let originCoords = null;
+let destCoords   = null;
+let debounceTimer = null;
+
+/* ─── 工具函式 ─── */
+const $ = id => document.getElementById(id);
+const showEl = (el, cls='show') => el.classList.add(cls);
+const hideEl = (el, cls='show') => el.classList.remove(cls);
+
+/* ─── 時間初始化 ─── */
+function initTime() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  $('rideTime').value = `${hh}:${mm}`;
+  checkNightTime();
+}
+
+/* ─── 夜間判斷 ─── */
+function checkNightTime() {
+  const val = $('rideTime').value;
+  if (!val) return;
+  const [h] = val.split(':').map(Number);
+  const r = RATES[currentCity];
+  const isNight = h >= r.nightStart || h < r.nightEnd;
+  const badge = $('nightBadge');
+  isNight ? showEl(badge) : hideEl(badge);
+}
+
+/* ─── 城市切換 ─── */
+document.querySelectorAll('.city-btn:not([disabled])').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.city-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCity = btn.dataset.city;
+    hideEl($('resultCard'));
+  });
+});
+
+/* ─── GPS 定位 ─── */
+$('gpsBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showError('您的瀏覽器不支援 GPS 定位');
+    return;
+  }
+  $('gpsBtn').textContent = '⏳';
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      originCoords = { lat, lng };
+      const addr = await reverseGeocode(lat, lng);
+      $('originInput').value = addr;
+      $('gpsBtn').textContent = '📍';
+    },
+    err => {
+      $('gpsBtn').textContent = '📍';
+      showError('無法取得 GPS 位置：' + err.message);
+    },
+    { timeout: 8000 }
+  );
+});
+
+/* ─── 反向地理編碼 ─── */
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=zh-TW`,
+      { headers: { 'Accept-Language': 'zh-TW' } }
+    );
+    const data = await res.json();
+    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch {
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+}
+
+/* ─── 地址自動建議 ─── */
+async function searchAddress(query, suggEl, isOrigin) {
+  if (query.length < 4) { suggEl.classList.remove('show'); return; }
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ' 台灣')}&format=json&addressdetails=1&limit=5&accept-language=zh-TW`,
+      { headers: { 'Accept-Language': 'zh-TW' } }
+    );
+    const items = await res.json();
+    if (!items.length) { suggEl.classList.remove('show'); return; }
+
+    suggEl.innerHTML = items.map(item => `
+      <div class="suggestion-item"
+           data-lat="${item.lat}"
+           data-lng="${item.lon}"
+           data-name="${item.display_name.replace(/"/g,'&quot;')}">
+        ${highlightMatch(item.display_name, query)}
+      </div>
+    `).join('');
+
+    suggEl.querySelectorAll('.suggestion-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const lat = parseFloat(el.dataset.lat);
+        const lng = parseFloat(el.dataset.lng);
+        const name = el.dataset.name;
+        if (isOrigin) {
+          $('originInput').value = name;
+          originCoords = { lat, lng };
+        } else {
+          $('destInput').value = name;
+          destCoords = { lat, lng };
+        }
+        suggEl.classList.remove('show');
+      });
+    });
+    suggEl.classList.add('show');
+  } catch { suggEl.classList.remove('show'); }
+}
+
+function highlightMatch(text, query) {
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+  return text.replace(re, '<strong>$1</strong>').substring(0, 80) + '…';
+}
+
+/* 輸入事件 */
+$('originInput').addEventListener('input', e => {
+  originCoords = null;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => searchAddress(e.target.value, $('originSuggestions'), true), 400);
+});
+$('destInput').addEventListener('input', e => {
+  destCoords = null;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => searchAddress(e.target.value, $('destSuggestions'), false), 400);
+});
+
+/* 點外部關閉建議 */
+document.addEventListener('click', e => {
+  if (!e.target.closest('.field')) {
+    $('originSuggestions').classList.remove('show');
+    $('destSuggestions').classList.remove('show');
+  }
+});
+
+/* ─── 時間監聽 ─── */
+$('rideTime').addEventListener('change', checkNightTime);
+
+/* ─── 計算主函式 ─── */
+$('calcBtn').addEventListener('click', async () => {
+  hideEl($('resultCard'));
+  hideEl($('errorMsg'));
+
+  /* 驗證地址已選 */
+  if (!originCoords) {
+    /* 嘗試解析起點 */
+    const q = $('originInput').value.trim();
+    if (!q) { showError('請輸入或定位起點地址'); return; }
+    const ok = await geocodeFirst(q, true);
+    if (!ok) { showError('找不到起點地址，請輸入更具體的地址'); return; }
+  }
+  if (!destCoords) {
+    const q = $('destInput').value.trim();
+    if (!q) { showError('請輸入終點地址'); return; }
+    const ok = await geocodeFirst(q, false);
+    if (!ok) { showError('找不到終點地址，請輸入更具體的地址'); return; }
+  }
+
+  showEl($('loading'));
+  $('calcBtn').disabled = true;
+
+  try {
+    const dist = await getOSRMDistance(originCoords, destCoords);
+    if (dist === null) throw new Error('無法取得道路距離');
+    renderResult(dist);
+  } catch (err) {
+    showError('距離計算失敗：' + err.message);
+  } finally {
+    hideEl($('loading'));
+    $('calcBtn').disabled = false;
+  }
+});
+
+/* 單次 Geocode */
+async function geocodeFirst(query, isOrigin) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ' 台灣')}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'zh-TW' } }
+    );
+    const items = await res.json();
+    if (!items.length) return false;
+    const coords = { lat: parseFloat(items[0].lat), lng: parseFloat(items[0].lon) };
+    if (isOrigin) originCoords = coords;
+    else destCoords = coords;
+    return true;
+  } catch { return false; }
+}
+
+/* ─── OSRM 距離查詢 ─── */
+async function getOSRMDistance(orig, dest) {
+  const url = `https://router.project-osrm.org/route/v1/driving/`
+    + `${orig.lng},${orig.lat};${dest.lng},${dest.lat}`
+    + `?overview=false&steps=false`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes?.length) return null;
+  return data.routes[0].distance; // 公尺
+}
+
+/* ─── 計算車資 ─── */
+function calcFare(distMeters) {
+  const r = RATES[currentCity];
+  let fare = r.flagFare;
+  const extra = Math.max(0, distMeters - r.flagDist);
+  fare += Math.ceil(extra / r.meterDist) * r.meterFare;
+  return fare;
+}
+
+/* ─── 渲染結果 ─── */
+function renderResult(distMeters) {
+  const r = RATES[currentCity];
+  const distKm = (distMeters / 1000).toFixed(2);
+
+  /* 夜間判斷 */
+  const [h] = $('rideTime').value.split(':').map(Number);
+  const isNight = h >= r.nightStart || h < r.nightEnd;
+
+  /* 基本車資 */
+  const baseFare = calcFare(distMeters);
+
+  /* 夜間加成（無緩衝）→ 最低 */
+  const nightAdd = isNight ? Math.round(baseFare * r.nightSurcharge) : 0;
+  const fareMin = Math.ceil((baseFare + nightAdd) / 5) * 5;
+
+  /* 最高：加 10% 路況緩衝（距離放大1.1） */
+  const baseFareHigh = calcFare(distMeters * 1.1);
+  const nightAddHigh = isNight ? Math.round(baseFareHigh * r.nightSurcharge) : 0;
+  const fareMax = Math.ceil((baseFareHigh + nightAddHigh) / 5) * 5;
+
+  /* 顯示 */
+  $('distancePill').textContent = `📍 ${distKm} 公里`;
+  $('fareMin').textContent = fareMin.toLocaleString();
+  $('fareMax').textContent = fareMax.toLocaleString();
+
+  /* 明細 */
+  const rows = [
+    { label: '🏁 起跳費', value: `${r.flagFare} 元` },
+    { label: `📏 行駛計費（${distKm} km）`, value: `${baseFare - r.flagFare} 元` },
+  ];
+  if (isNight) rows.push({ label: '🌙 夜間加成（+20%）', value: `+${nightAdd} 元`, highlight: true });
+  rows.push({ label: '💰 估算範圍', value: `${fareMin}～${fareMax} 元`, total: true });
+
+  $('breakdown').innerHTML = `
+    <div class="breakdown-title">費用明細</div>
+    ${rows.map(row => `
+      <div class="breakdown-item${row.highlight?' highlight':''}${row.total?' total':''}">
+        <span class="label">${row.label}</span>
+        <span class="value">${row.value}</span>
+      </div>
+    `).join('')}
+  `;
+
+  showEl($('resultCard'));
+  $('resultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ─── 錯誤顯示 ─── */
+function showError(msg) {
+  const el = $('errorMsg');
+  el.textContent = '⚠️ ' + msg;
+  showEl(el);
+}
+
+/* ─── 初始化 ─── */
+initTime();
+
+/* ─── Service Worker 註冊 ─── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

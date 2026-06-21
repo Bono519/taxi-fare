@@ -1,0 +1,25 @@
+{
+  "name": "計程車資估算",
+  "short_name": "車資估算",
+  "description": "台灣計程車資估算工具，支援高雄市費率與真實道路距離",
+  "start_url": "/taxi-fare/",
+  "display": "standalone",
+  "background_color": "#0f1923",
+  "theme_color": "#0f1923",
+  "orientation": "portrait-primary",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
