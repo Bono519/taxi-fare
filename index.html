@@ -775,20 +775,47 @@ $('calcBtn').addEventListener('click', async () => {
   }
 });
 
-/* 單次 Geocode */
+/* 單次 Geocode — 多格式備援 */
 async function geocodeFirst(query, isOrigin) {
+  const stripped = query.replace(/台灣|Taiwan/gi, '').trim();
+  const candidates = [
+    stripped,
+    stripped + ' 台灣',
+    stripped + ' 高雄市 台灣',
+  ];
+
+  for (const q of candidates) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=tw`,
+        { headers: { 'Accept-Language': 'zh-TW' } }
+      );
+      const items = await res.json();
+      if (items.length) {
+        const coords = { lat: parseFloat(items[0].lat), lng: parseFloat(items[0].lon) };
+        if (isOrigin) originCoords = coords;
+        else destCoords = coords;
+        return true;
+      }
+    } catch(e) { continue; }
+  }
+
+  // 最後備援：結構化欄位查詢
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ' 台灣')}&format=json&limit=1`,
+      `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(stripped)}&country=Taiwan&format=json&limit=1`,
       { headers: { 'Accept-Language': 'zh-TW' } }
     );
     const items = await res.json();
-    if (!items.length) return false;
-    const coords = { lat: parseFloat(items[0].lat), lng: parseFloat(items[0].lon) };
-    if (isOrigin) originCoords = coords;
-    else destCoords = coords;
-    return true;
-  } catch { return false; }
+    if (items.length) {
+      const coords = { lat: parseFloat(items[0].lat), lng: parseFloat(items[0].lon) };
+      if (isOrigin) originCoords = coords;
+      else destCoords = coords;
+      return true;
+    }
+  } catch(e) {}
+
+  return false;
 }
 
 /* ─── OSRM 距離查詢 ─── */
